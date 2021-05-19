@@ -1,0 +1,6 @@
+{
+  "name": "LALR1Parser",
+  "vendor": "CodingLiki",
+  "description": "Парсер для грамматик, по которым можно построить LALR1 таблицу.",
+  "repo_url": "https://github.com/coding-liki/LALR1Parser.git"
+}
