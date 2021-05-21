@@ -60,4 +60,14 @@ class AstLeaf
     {
         return $this->name;
     }
+
+    /**
+     * @param Token[]|AstLeaf[] $children
+     * @return AstLeaf
+     */
+    public function setChildren(array $children): AstLeaf
+    {
+        $this->children = $children;
+        return $this;
+    }
 }
