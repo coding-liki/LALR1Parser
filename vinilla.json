@@ -1,6 +1,10 @@
 {
   "name": "LALR1Parser",
   "vendor": "CodingLiki",
-  "description": "Парсер для грамматик, по которым можно построить LALR1 таблицу.",
-  "repo_url": "https://github.com/coding-liki/LALR1Parser.git"
+  "description": "\u041f\u0430\u0440\u0441\u0435\u0440 \u0434\u043b\u044f \u0433\u0440\u0430\u043c\u043c\u0430\u0442\u0438\u043a, \u043f\u043e \u043a\u043e\u0442\u043e\u0440\u044b\u043c \u043c\u043e\u0436\u043d\u043e \u043f\u043e\u0441\u0442\u0440\u043e\u0438\u0442\u044c LALR1 \u0442\u0430\u0431\u043b\u0438\u0446\u0443.",
+  "repo_url": "https:\/\/github.com\/coding-liki\/LALR1Parser.git",
+  "depends_on": [
+    "CodingLiki\/OoAutoloader",
+    "CodingLiki\/GrammarParser"
+  ]
 }
