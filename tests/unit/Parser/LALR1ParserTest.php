@@ -9,8 +9,11 @@ use CodingLiki\GrammarParser\GrammarRuleParser;
 use CodingLiki\GrammarParser\Token\Token;
 use CodingLiki\LALR1Parser\AstTree\AstLeaf;
 use CodingLiki\LALR1Parser\AstTree\AstTree;
+use CodingLiki\LALR1Parser\Parser\Exceptions\BadTokenException;
+use CodingLiki\LALR1Parser\Parser\Exceptions\ErrorInTableException;
 use CodingLiki\LALR1Parser\Parser\LALR1Parser;
 use CodingLiki\LALR1Parser\TableReader\CsvTableReader;
+use Exception;
 
 class LALR1ParserTest extends Unit
 {
@@ -33,6 +36,28 @@ class LALR1ParserTest extends Unit
         $parser = new LALR1Parser($table, $rules);
         self::assertEquals($astTree, $parser->parse($tokens));
 
+    }
+
+    /**
+     * @dataProvider parseWithExceptionProvider
+     *
+     * @param array $tokens
+     * @param string $rules
+     * @param string $tableString
+     * @param Exception $exception
+     */
+    public function testParserWithException(array $tokens, string $rules, string $tableString, Exception $exception)
+    {
+        $rules = GrammarRuleParser::parse($rules);
+
+        $reader = new CsvTableReader();
+
+        $table = $reader->read($tableString);
+        $parser = new LALR1Parser($table, $rules);
+
+        $this->expectExceptionObject($exception);
+
+        $parser->parse($tokens);
     }
 
     public function parseProvider(): array
@@ -110,6 +135,31 @@ class LALR1ParserTest extends Unit
                                     )
                             )
                     )
+            ]
+        ];
+    }
+
+    public function parseWithExceptionProvider(): array
+    {
+        return [
+            'bad token' => [
+                [new Token('b', 'aaa')],
+                "test: a;",
+                file_get_contents(__DIR__ . '/../../../grammar/test.grr.lrt'),
+                new BadTokenException( 'b')
+            ],
+            'error in table' => [
+                [
+                    new Token('A', 'A1'),
+                    new Token('C', 'C1'),
+                    new Token('A', 'A2'),
+                    new Token('D', 'D1'),
+                    new Token('D', 'D2'),
+                ],
+                file_get_contents(__DIR__ . '/../../../grammar/testTest.grr'),
+                file_get_contents(__DIR__ . '/../../../grammar/testTest.grr.lrt'),
+                new ErrorInTableException( 'D', 'D1')
+
             ]
         ];
     }

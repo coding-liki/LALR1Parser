@@ -9,6 +9,8 @@ use CodingLiki\GrammarParser\RulesHelper;
 use CodingLiki\GrammarParser\Token\Token;
 use CodingLiki\LALR1Parser\AstTree\AstLeaf;
 use CodingLiki\LALR1Parser\AstTree\AstTree;
+use CodingLiki\LALR1Parser\Parser\Exceptions\BadTokenException;
+use CodingLiki\LALR1Parser\Parser\Exceptions\ErrorInTableException;
 use CodingLiki\LALR1Parser\Parser\StackElements\ParserStackLeafElement;
 use CodingLiki\LALR1Parser\Parser\StackElements\ParserStackPositionElement;
 use CodingLiki\LALR1Parser\Parser\StackElements\ParserStackTokenElement;
@@ -16,6 +18,7 @@ use Error;
 
 class LALR1Parser implements LALR1ParserInterface
 {
+    private ParserStack $stack;
     /**
      * LALR1Parser constructor.
      * @param array $table
@@ -26,10 +29,13 @@ class LALR1Parser implements LALR1ParserInterface
         if (!empty($this->rules)) {
             array_unshift($this->rules, RulesHelper::buildRootRule($this->rules));
         }
+        $this->stack = new ParserStack();
     }
 
     /**
      * @inheritDoc
+     * @throws BadTokenException
+     * @throws ErrorInTableException
      */
     public function parse(array $tokenChain): AstTree
     {
@@ -42,10 +48,9 @@ class LALR1Parser implements LALR1ParserInterface
         $tokenChain[] = new Token('$', '');
 
 
-        $stack = new ParserStack();
-        $stack->putElement(new ParserStackPositionElement(0));
+        $this->stack->putElement(new ParserStackPositionElement(0));
         while ($token = array_shift($tokenChain)) {
-            $position = $stack->getElement();
+            $position = $this->stack->getElement();
             $isPositionInStack = true;
 
             $key = $token->getType();
@@ -53,43 +58,46 @@ class LALR1Parser implements LALR1ParserInterface
                 $isPositionInStack = false;
 
                 /** @var ParserStackLeafElement $element */
-                $element = $stack->popElement();
-                $position = $stack->getElement();
-                $stack->putElement($element);
+                $element = $this->stack->popElement();
+                $position = $this->stack->getElement();
+                $this->stack->putElement($element);
                 $key = $element->getContent()->getName();
             }
 
-            $whatToDo = $this->table[$position->getContent()][$key];
+            $whatToDo = $this->table[$position->getContent()][$key] ?? null;
 
-            switch ($whatToDo[0]) {
+            if($whatToDo === null){
+                throw new BadTokenException($key);
+            }
+            switch ($whatToDo[0] ?? null) {
                 case 's' :
                     $stageNumber = (int)substr($whatToDo, 1);
                     if ($isPositionInStack) {
-                        $stack->putElement(new ParserStackTokenElement($token));
+                        $this->stack->putElement(new ParserStackTokenElement($token));
                     } else {
                         array_unshift($tokenChain, $token);
                     }
-                    $stack->putElement(new ParserStackPositionElement($stageNumber));
+                    $this->stack->putElement(new ParserStackPositionElement($stageNumber));
                     break;
                 case 'r':
                     if(!$isPositionInStack){
-                        $stack->putElement(new ParserStackPositionElement(-1));
+                        $this->stack->putElement(new ParserStackPositionElement(-1));
                     }
                     $ruleNumber = (int)substr($whatToDo, 1);
                     $rule = $this->rules[$ruleNumber];
-                    $this->reduceByRule($stack, $rule);
+                    $this->reduceByRule($rule);
                     array_unshift($tokenChain, $token);
                     break;
                 case 'a':
                     break;
                 case 'e':
-                    throw new Error("bad token " . $token->getType());
+                    throw new ErrorInTableException($token->getType(), $token->getValue());
             }
         }
 
-        $stack->popElement();
+        $this->stack->popElement();
         /** @var ParserStackLeafElement $leafElement */
-        $leafElement = $stack->popElement();
+        $leafElement = $this->stack->popElement();
         if($leafElement !== null){
             $tree->addChild($leafElement->getContent());
         }
@@ -97,7 +105,7 @@ class LALR1Parser implements LALR1ParserInterface
         return $tree;
     }
 
-    private function reduceByRule(ParserStack $stack, Rule $rule): void
+    private function reduceByRule(Rule $rule): void
     {
         $leaf = new AstLeaf($rule->getName());
         $ruleParts = $rule->getParts();
@@ -106,8 +114,8 @@ class LALR1Parser implements LALR1ParserInterface
 
         foreach ($reversedRuleParts as $part) {
             if ($part->getType() === RulePart::TYPE_NORMAL) {
-                $stack->popElement();
-                $element = $stack->popElement();
+                $this->stack->popElement();
+                $element = $this->stack->popElement();
 
                 if ($element instanceof ParserStackTokenElement && $element->getContent()->getType() === $part->getData()) {
                     $leaf->unshiftChildToken($element->getContent());
@@ -121,8 +129,8 @@ class LALR1Parser implements LALR1ParserInterface
                 $finished = false;
 
                 while (!$finished) {
-                    $positionElement = $stack->popElement();
-                    $element = $stack->popElement();
+                    $positionElement = $this->stack->popElement();
+                    $element = $this->stack->popElement();
                     if ($element instanceof ParserStackTokenElement && $element->getContent()->getType() === $part->getData()) {
                         $leaf->unshiftChildToken($element->getContent());
                     } elseif ($element instanceof ParserStackLeafElement && $element->getContent()->getName() === $part->getData()) {
@@ -131,13 +139,12 @@ class LALR1Parser implements LALR1ParserInterface
                         throw new Error("bad stackElement " . $positionElement->getType());
                     } else {
                         $finished = true;
-                        $stack->putElement($element)->putElement($positionElement);
+                        $this->stack->putElement($element)->putElement($positionElement);
                     }
                 }
             }
         }
 
-        //$leaf->getName();
-        $stack->putElement(new ParserStackLeafElement($leaf));
+        $this->stack->putElement(new ParserStackLeafElement($leaf));
     }
 }
